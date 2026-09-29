@@ -27,7 +27,7 @@ fn main() {
 
 struct Sudoku {
     cells: [Option<NonZero<u8>>; 81],
-    clues_indices: Vec<usize>,
+    playable_indices: Vec<usize>,
     annotations: [Vec<NonZero<u8>>; 81],
 }
 
@@ -35,10 +35,13 @@ impl Sudoku {
     fn new(cells: [Option<NonZero<u8>>; 81]) -> Self {
         Self {
             annotations: array::repeat::<Vec<NonZero<u8>>, 81>(Vec::new()),
-            clues_indices: cells
+            playable_indices: cells
                 .iter()
                 .enumerate()
-                .filter_map(|(i, c)| c.map(|_| i))
+                .filter_map(|(i, c)| match c {
+                    Some(_) => None,
+                    None => Some(i),
+                })
                 .collect::<Vec<usize>>(),
             cells,
         }
@@ -165,20 +168,15 @@ impl Sudoku {
     fn solve(&mut self) -> Option<()> {
         self.annotations = array::repeat::<Vec<NonZero<u8>>, 81>(full_annotations());
 
-        let mut index = 0;
-        while self.clues_indices.contains(&index) {
-            index += 1;
-        }
+        let mut playable_index = 0;
         loop {
+            let index = self.playable_indices[playable_index];
             let annotation = &mut self.annotations[index];
 
             let Some(value_to_try) = annotation.pop() else {
                 *annotation = full_annotations();
                 self.cells[index] = None;
-                index = index.checked_sub(1)?;
-                while self.clues_indices.contains(&index) {
-                    index = index.checked_sub(1)?;
-                }
+                playable_index = playable_index.checked_sub(1)?;
                 continue;
             };
 
@@ -191,12 +189,8 @@ impl Sudoku {
                 && self.is_valid_column(col_i)
                 && self.is_valid_row(row_i)
             {
-                index += 1;
-                while self.clues_indices.contains(&index) {
-                    index += 1;
-                }
-
-                if index == 81 {
+                playable_index += 1;
+                if playable_index == self.playable_indices.len() {
                     break;
                 }
             }
