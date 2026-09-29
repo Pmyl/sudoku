@@ -1,26 +1,23 @@
-use std::{collections::HashSet, num::NonZero};
+mod printer;
+
+use std::{array, collections::HashSet, num::NonZero};
+
+use crate::printer::print_board;
 
 fn main() {
-    let sudoku = Sudoku {
-        cells: [
-            3, 2, 8, 6, 5, 4, 9, 1, 7, 4, 7, 1, 9, 2, 3, 8, 6, 5, 5, 6, 9, 1, 7, 8, 4, 2, 3, 6, 8,
-            4, 5, 3, 7, 2, 9, 1, 2, 1, 5, 4, 8, 9, 3, 7, 6, 9, 3, 7, 2, 1, 6, 5, 8, 4, 1, 5, 3, 8,
-            6, 2, 7, 4, 9, 7, 9, 2, 3, 4, 1, 6, 5, 8, 8, 4, 6, 7, 9, 5, 1, 3, 2,
-        ]
-        .map(|n| {
-            if n != 0 {
-                Some(n.try_into().unwrap())
-            } else {
-                None
-            }
-        }),
+    let mut sudoku = Sudoku {
+        annotations: array::repeat::<Vec<NonZero<u8>>, 81>(Vec::new()),
+        cells: [None; 81],
     };
 
+    sudoku.generate();
     println!("Is complete and valid {}", sudoku.is_complete_and_valid());
+    print_board(&sudoku)
 }
 
 struct Sudoku {
     cells: [Option<NonZero<u8>>; 81],
+    annotations: [Vec<NonZero<u8>>; 81],
 }
 
 impl Sudoku {
@@ -80,4 +77,131 @@ impl Sudoku {
 
         true
     }
+
+    fn is_valid_column(&self, col_i: usize) -> bool {
+        let mut set = HashSet::<NonZero<u8>>::new();
+        for cell_i in 0..9 {
+            let Some(cell) = &self.cells[col_i + cell_i * 9] else {
+                continue;
+            };
+
+            if !set.insert(*cell) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    fn is_valid_row(&self, row_i: usize) -> bool {
+        let row = &self.cells[row_i * 9..row_i * 9 + 9];
+
+        let mut set = HashSet::<NonZero<u8>>::new();
+
+        for cell_i in 0..9 {
+            let Some(cell) = &row[cell_i] else {
+                continue;
+            };
+
+            if !set.insert(*cell) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    fn is_valid_block(&self, block_i: usize) -> bool {
+        let mut block: [&Option<NonZero<u8>>; 9] = [&None; 9];
+        let start_i = (block_i / 3) * 27 + (block_i.rem_euclid(3) * 3);
+        for (chunk_i, cells) in [0usize, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+            .chunks_exact(3)
+            .enumerate()
+        {
+            for block_cell_i in cells {
+                let i = start_i + block_cell_i + chunk_i * 6;
+                block[*block_cell_i] = &self.cells[i];
+            }
+        }
+
+        let mut set = HashSet::<NonZero<u8>>::new();
+
+        for cell_i in 0..9 {
+            let Some(cell) = &block[cell_i] else {
+                continue;
+            };
+
+            if !set.insert(*cell) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    fn generate(&mut self) {
+        self.annotations = array::repeat::<Vec<NonZero<u8>>, 81>(full_annotations());
+
+        let mut index = 0;
+        loop {
+            let annotation = &mut self.annotations[index];
+
+            let Some(value_to_try) = annotation.pop() else {
+                *annotation = full_annotations();
+                self.cells[index] = None;
+                index -= 1;
+                continue;
+            };
+
+            self.cells[index] = Some(value_to_try);
+            let row_i = index / 9;
+            let col_i = index % 9;
+            let block_i = CELL_TO_BLOCK[index];
+
+            if self.is_valid_block(block_i)
+                && self.is_valid_column(col_i)
+                && self.is_valid_row(row_i)
+            {
+                index += 1;
+
+                if index == 81 {
+                    break;
+                }
+            }
+        }
+    }
 }
+
+fn non_zero(value: u8) -> NonZero<u8> {
+    match NonZero::new(value) {
+        Some(v) => v,
+        None => unreachable!(),
+    }
+}
+
+fn full_annotations() -> Vec<NonZero<u8>> {
+    vec![
+        non_zero(1),
+        non_zero(2),
+        non_zero(3),
+        non_zero(4),
+        non_zero(5),
+        non_zero(6),
+        non_zero(7),
+        non_zero(8),
+        non_zero(9),
+    ]
+}
+
+#[rustfmt::skip]
+const CELL_TO_BLOCK: [usize; 81] = [
+    0, 0, 0, 1, 1, 1, 2, 2, 2,
+    0, 0, 0, 1, 1, 1, 2, 2, 2,
+    0, 0, 0, 1, 1, 1, 2, 2, 2,
+    3, 3, 3, 4, 4, 4, 5, 5, 5,
+    3, 3, 3, 4, 4, 4, 5, 5, 5,
+    3, 3, 3, 4, 4, 4, 5, 5, 5,
+    6, 6, 6, 7, 7, 7, 8, 8, 8,
+    6, 6, 6, 7, 7, 7, 8, 8, 8,
+    6, 6, 6, 7, 7, 7, 8, 8, 8,
+    ];
