@@ -5,22 +5,45 @@ use std::{array, collections::HashSet, num::NonZero};
 use crate::printer::print_board;
 
 fn main() {
-    let mut sudoku = Sudoku {
-        annotations: array::repeat::<Vec<NonZero<u8>>, 81>(Vec::new()),
-        cells: [None; 81],
-    };
+    let mut sudoku = Sudoku::new(
+        [
+            1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        ]
+        .map(|v| match v {
+            0 => None,
+            a => Some(non_zero(a)),
+        }),
+    );
 
-    sudoku.generate();
+    let Some(_) = sudoku.solve() else {
+        println!("INVALID");
+        return;
+    };
     println!("Is complete and valid {}", sudoku.is_complete_and_valid());
     print_board(&sudoku)
 }
 
 struct Sudoku {
     cells: [Option<NonZero<u8>>; 81],
+    clues_indices: Vec<usize>,
     annotations: [Vec<NonZero<u8>>; 81],
 }
 
 impl Sudoku {
+    fn new(cells: [Option<NonZero<u8>>; 81]) -> Self {
+        Self {
+            annotations: array::repeat::<Vec<NonZero<u8>>, 81>(Vec::new()),
+            clues_indices: cells
+                .iter()
+                .enumerate()
+                .filter_map(|(i, c)| c.map(|_| i))
+                .collect::<Vec<usize>>(),
+            cells,
+        }
+    }
+
     fn is_complete_and_valid(&self) -> bool {
         // columns
         for col_i in 0..9 {
@@ -139,17 +162,23 @@ impl Sudoku {
         return true;
     }
 
-    fn generate(&mut self) {
+    fn solve(&mut self) -> Option<()> {
         self.annotations = array::repeat::<Vec<NonZero<u8>>, 81>(full_annotations());
 
         let mut index = 0;
+        while self.clues_indices.contains(&index) {
+            index += 1;
+        }
         loop {
             let annotation = &mut self.annotations[index];
 
             let Some(value_to_try) = annotation.pop() else {
                 *annotation = full_annotations();
                 self.cells[index] = None;
-                index -= 1;
+                index = index.checked_sub(1)?;
+                while self.clues_indices.contains(&index) {
+                    index = index.checked_sub(1)?;
+                }
                 continue;
             };
 
@@ -163,12 +192,17 @@ impl Sudoku {
                 && self.is_valid_row(row_i)
             {
                 index += 1;
+                while self.clues_indices.contains(&index) {
+                    index += 1;
+                }
 
                 if index == 81 {
                     break;
                 }
             }
         }
+
+        Some(())
     }
 }
 
@@ -204,4 +238,4 @@ const CELL_TO_BLOCK: [usize; 81] = [
     6, 6, 6, 7, 7, 7, 8, 8, 8,
     6, 6, 6, 7, 7, 7, 8, 8, 8,
     6, 6, 6, 7, 7, 7, 8, 8, 8,
-    ];
+];
