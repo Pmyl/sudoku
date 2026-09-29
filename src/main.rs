@@ -1,27 +1,35 @@
 mod printer;
 
-use std::{array, collections::HashSet, num::NonZero};
+use std::{array, collections::HashSet, num::NonZero, time::Instant};
 
 use crate::printer::print_board;
 
 fn main() {
-    let mut sudoku = Sudoku::new(
-        [
-            1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        ]
-        .map(|v| match v {
-            0 => None,
-            a => Some(non_zero(a)),
-        }),
-    );
+    #[rustfmt::skip]
+    let example: [Option<NonZero<u8>>; 81] = [
+        0,0,0,0,0,0,0,1,0,
+        4,0,0,0,0,0,0,0,0,
+        0,2,0,0,0,0,0,0,0,
+        0,0,0,0,5,0,4,0,7,
+        0,0,8,0,0,0,3,0,0,
+        0,0,1,0,9,0,0,0,0,
+        3,0,0,4,0,0,2,0,0,
+        0,5,0,1,0,0,0,0,0,
+        0,0,0,8,0,6,0,0,0
+    ].map(|v| match v {
+        0 => None,
+        a => Some(non_zero(a)),
+    });
 
+    let mut sudoku = Sudoku::new(example);
+
+    println!("Clues: {}", 81 - sudoku.playable_indices.len());
+    let time = Instant::now();
     let Some(_) = sudoku.solve() else {
         println!("INVALID");
         return;
     };
-    println!("Is complete and valid {}", sudoku.is_complete_and_valid());
+    println!("Completed in {} seconds!", time.elapsed().as_secs_f32());
     print_board(&sudoku)
 }
 
@@ -200,7 +208,7 @@ impl Sudoku {
     }
 }
 
-fn non_zero(value: u8) -> NonZero<u8> {
+const fn non_zero(value: u8) -> NonZero<u8> {
     match NonZero::new(value) {
         Some(v) => v,
         None => unreachable!(),
