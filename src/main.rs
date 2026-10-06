@@ -113,15 +113,17 @@ impl Sudoku {
     }
 
     fn is_valid_column(&self, col_i: usize) -> bool {
-        let mut set = HashSet::<NonZero<u8>>::new();
+        let mut set = [false; 10];
         for cell_i in 0..9 {
-            let Some(cell) = &self.cells[col_i + cell_i * 9] else {
+            let Some(value) = &self.cells[col_i + cell_i * 9] else {
                 continue;
             };
 
-            if !set.insert(*cell) {
+            if set[value.get() as usize] {
                 return false;
             }
+
+            set[value.get() as usize] = true;
         }
 
         return true;
@@ -130,44 +132,38 @@ impl Sudoku {
     fn is_valid_row(&self, row_i: usize) -> bool {
         let row = &self.cells[row_i * 9..row_i * 9 + 9];
 
-        let mut set = HashSet::<NonZero<u8>>::new();
+        let mut set = [false; 10];
 
         for cell_i in 0..9 {
-            let Some(cell) = &row[cell_i] else {
+            let Some(value) = &row[cell_i] else {
                 continue;
             };
 
-            if !set.insert(*cell) {
+            if set[value.get() as usize] {
                 return false;
             }
+
+            set[value.get() as usize] = true;
         }
 
         return true;
     }
 
     fn is_valid_block(&self, block_i: usize) -> bool {
-        let mut block: [&Option<NonZero<u8>>; 9] = [&None; 9];
-        let start_i = (block_i / 3) * 27 + (block_i.rem_euclid(3) * 3);
-        for (chunk_i, cells) in [0usize, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-            .chunks_exact(3)
-            .enumerate()
-        {
-            for block_cell_i in cells {
-                let i = start_i + block_cell_i + chunk_i * 6;
-                block[*block_cell_i] = &self.cells[i];
-            }
-        }
+        let block_indices = &BLOCK_TO_INDICES[block_i];
 
-        let mut set = HashSet::<NonZero<u8>>::new();
+        let mut set = [false; 10];
 
-        for cell_i in 0..9 {
-            let Some(cell) = &block[cell_i] else {
+        for cell_i in block_indices {
+            let Some(value) = &self.cells[*cell_i] else {
                 continue;
             };
 
-            if !set.insert(*cell) {
+            if set[value.get() as usize] {
                 return false;
             }
+
+            set[value.get() as usize] = true;
         }
 
         return true;
@@ -240,4 +236,17 @@ const CELL_TO_BLOCK: [usize; 81] = [
     6, 6, 6, 7, 7, 7, 8, 8, 8,
     6, 6, 6, 7, 7, 7, 8, 8, 8,
     6, 6, 6, 7, 7, 7, 8, 8, 8,
+];
+
+#[rustfmt::skip]
+const BLOCK_TO_INDICES: [[usize; 9]; 9] = [
+    [ 0,  1,  2,  9, 10, 11, 18, 19, 20],
+    [ 3,  4,  5, 12, 13, 14, 21, 22, 23],
+    [ 6,  7,  8, 15, 16, 17, 24, 25, 26],
+    [27, 28, 29, 36, 37, 38, 45, 46, 47],
+    [30, 31, 32, 39, 40, 41, 48, 49, 50],
+    [33, 34, 35, 42, 43, 44, 51, 52, 53],
+    [54, 55, 56, 63, 64, 65, 72, 73, 74],
+    [57, 58, 59, 66, 67, 68, 75, 76, 77],
+    [60, 61, 62, 69, 70, 71, 78, 79, 80],
 ];
