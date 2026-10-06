@@ -76,6 +76,7 @@ fn main() {
 
     // TODO: 000000012300000060000040000900000500000001070020000000000350400001400800060000000
     //       This is the worst one, it took 130 seconds!!!
+    // Look into https://en.wikipedia.org/wiki/Knuth's_Algorithm_X
 
     for example in examples2 {
         solve_sudoku_puzzle(example);
