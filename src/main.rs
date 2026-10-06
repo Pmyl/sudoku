@@ -24,19 +24,19 @@ fn main() {
 
     let mut sudoku = Sudoku::new(example);
 
-    println!("Clues: {}", 81 - sudoku.playable_indices.len());
+    println!("Clues: {}", sudoku.clues_count());
     let time = Instant::now();
     let Some(_) = sudoku.solve() else {
         println!("INVALID");
         return;
     };
     println!("Completed in {} seconds!", time.elapsed().as_secs_f32());
+    println!("VALID: {}!", sudoku.is_complete_and_valid());
     print_board(&sudoku)
 }
 
 struct Sudoku {
     cells: [Option<NonZero<u8>>; 81],
-    playable_indices: Vec<usize>,
     annotations: [Vec<NonZero<u8>>; 81],
 }
 
@@ -44,16 +44,12 @@ impl Sudoku {
     fn new(cells: [Option<NonZero<u8>>; 81]) -> Self {
         Self {
             annotations: array::repeat::<Vec<NonZero<u8>>, 81>(Vec::new()),
-            playable_indices: cells
-                .iter()
-                .enumerate()
-                .filter_map(|(i, c)| match c {
-                    Some(_) => None,
-                    None => Some(i),
-                })
-                .collect::<Vec<usize>>(),
             cells,
         }
+    }
+
+    fn clues_count(&self) -> usize {
+        self.cells.iter().filter(|c| c.is_some()).count()
     }
 
     fn is_complete_and_valid(&self) -> bool {
@@ -113,6 +109,7 @@ impl Sudoku {
         true
     }
 
+    // Note: Using `set` as an array instead of a HashSet gives a big impact in performance (from 40~ seconds to 4~ seconds to solve a 17 clues sudoku)
     fn is_valid_column(&self, col_i: usize) -> bool {
         let column = column_cells(&self.cells, col_i);
 
@@ -133,6 +130,7 @@ impl Sudoku {
         return true;
     }
 
+    // Note: Using `set` as an array instead of a HashSet gives a big impact in performance (from 40~ seconds to 4~ seconds to solve a 17 clues sudoku)
     fn is_valid_row(&self, row_i: usize) -> bool {
         let row = row_cells(&self.cells, row_i);
 
@@ -153,6 +151,7 @@ impl Sudoku {
         return true;
     }
 
+    // Note: Using `set` as an array instead of a HashSet gives a big impact in performance (from 40~ seconds to 4~ seconds to solve a 17 clues sudoku)
     fn is_valid_block(&self, block_i: usize) -> bool {
         let block_indices = &BLOCK_TO_INDICES[block_i];
 
@@ -176,10 +175,11 @@ impl Sudoku {
     fn solve(&mut self) -> Option<()> {
         self.annotations = array::from_fn(|i| calculate_cell_annotations(&self.cells, i));
         let original_annotations = self.annotations.clone();
+        let playable_indices = self.calculate_playable_indices_order();
 
         let mut playable_index = 0;
         loop {
-            let index = self.playable_indices[playable_index];
+            let index = playable_indices[playable_index];
             let annotation = &mut self.annotations[index];
 
             let Some(value_to_try) = annotation.pop() else {
@@ -199,13 +199,31 @@ impl Sudoku {
                 && self.is_valid_row(row_i)
             {
                 playable_index += 1;
-                if playable_index == self.playable_indices.len() {
+                if playable_index == playable_indices.len() {
                     break;
                 }
             }
         }
 
         Some(())
+    }
+
+    // Sorted by annotations length, smaller annotations means it's more probable to hit the right one and not backtrack
+    // Note: Sorting has the biggest impact, it goes from 2 seconds to 0 seconds to solve a 17 clues sudoku we used as example
+    fn calculate_playable_indices_order(&mut self) -> Vec<usize> {
+        let mut playable_indices = self
+            .annotations
+            .iter()
+            .enumerate()
+            .filter(|(_, a)| !a.is_empty())
+            .map(|(i, a)| (i, a.len()))
+            .collect::<Vec<_>>();
+        playable_indices.sort_by_key(|(_, l)| *l);
+        let playable_indices = playable_indices
+            .into_iter()
+            .map(|(i, _)| i)
+            .collect::<Vec<_>>();
+        playable_indices
     }
 }
 
@@ -246,7 +264,12 @@ fn calculate_cell_annotations(
     cells: &[Option<NonZero<u8>>; 81],
     cell_i: usize,
 ) -> Vec<NonZero<u8>> {
+    if cells[cell_i].is_some() {
+        return vec![];
+    }
+
     let mut available_as_set = [true; 9]; // value 1 is index 0 and so on, if true it's available, otherwise false
+
     // check row
     let row = row_cells(cells, CELL_TO_ROW[cell_i]);
     row.iter().for_each(|value| match value {
