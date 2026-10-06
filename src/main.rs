@@ -1,3 +1,4 @@
+#![feature(gen_blocks)]
 mod printer;
 
 use std::{array, collections::HashSet, num::NonZero, time::Instant};
@@ -113,9 +114,12 @@ impl Sudoku {
     }
 
     fn is_valid_column(&self, col_i: usize) -> bool {
+        let column = column_cells(&self.cells, col_i);
+
         let mut set = [false; 10];
-        for cell_i in 0..9 {
-            let Some(value) = &self.cells[col_i + cell_i * 9] else {
+
+        for v in column {
+            let Some(value) = v else {
                 continue;
             };
 
@@ -130,7 +134,7 @@ impl Sudoku {
     }
 
     fn is_valid_row(&self, row_i: usize) -> bool {
-        let row = &self.cells[row_i * 9..row_i * 9 + 9];
+        let row = row_cells(&self.cells, row_i);
 
         let mut set = [false; 10];
 
@@ -170,7 +174,8 @@ impl Sudoku {
     }
 
     fn solve(&mut self) -> Option<()> {
-        self.annotations = array::repeat::<Vec<NonZero<u8>>, 81>(full_annotations());
+        self.annotations = array::from_fn(|i| calculate_cell_annotations(&self.cells, i));
+        let original_annotations = self.annotations.clone();
 
         let mut playable_index = 0;
         loop {
@@ -178,7 +183,7 @@ impl Sudoku {
             let annotation = &mut self.annotations[index];
 
             let Some(value_to_try) = annotation.pop() else {
-                *annotation = full_annotations();
+                *annotation = original_annotations[index].clone();
                 self.cells[index] = None;
                 playable_index = playable_index.checked_sub(1)?;
                 continue;
@@ -204,11 +209,70 @@ impl Sudoku {
     }
 }
 
+fn row_cells(cells: &[Option<NonZero<u8>>; 81], row_i: usize) -> &[Option<NonZero<u8>>] {
+    &cells[row_i * 9..row_i * 9 + 9]
+}
+
+fn column_cells(
+    cells: &[Option<NonZero<u8>>; 81],
+    col_i: usize,
+) -> impl Iterator<Item = &Option<NonZero<u8>>> {
+    gen move {
+        for cell_i in 0..9 {
+            yield &cells[col_i + cell_i * 9];
+        }
+    }
+}
+
+fn block_cells(
+    cells: &[Option<NonZero<u8>>; 81],
+    block_i: usize,
+) -> impl Iterator<Item = &Option<NonZero<u8>>> {
+    gen move {
+        for cell_i in BLOCK_TO_INDICES[block_i] {
+            yield &cells[cell_i];
+        }
+    }
+}
+
 const fn non_zero(value: u8) -> NonZero<u8> {
     match NonZero::new(value) {
         Some(v) => v,
         None => unreachable!(),
     }
+}
+
+fn calculate_cell_annotations(
+    cells: &[Option<NonZero<u8>>; 81],
+    cell_i: usize,
+) -> Vec<NonZero<u8>> {
+    let mut available_as_set = [true; 9]; // value 1 is index 0 and so on, if true it's available, otherwise false
+    // check row
+    let row = row_cells(cells, CELL_TO_ROW[cell_i]);
+    row.iter().for_each(|value| match value {
+        Some(value) => available_as_set[value.get() as usize - 1] = false,
+        None => {}
+    });
+
+    // check column
+    let column = column_cells(cells, CELL_TO_COLUMN[cell_i]);
+    column.for_each(|value| match value {
+        Some(value) => available_as_set[value.get() as usize - 1] = false,
+        None => {}
+    });
+
+    // check block
+    let block = block_cells(cells, CELL_TO_BLOCK[cell_i]);
+    block.for_each(|value| match value {
+        Some(value) => available_as_set[value.get() as usize - 1] = false,
+        None => {}
+    });
+
+    available_as_set
+        .into_iter()
+        .enumerate()
+        .filter_map(|(i, present)| NonZero::new(if present { i as u8 + 1 } else { 0 }))
+        .collect::<Vec<_>>()
 }
 
 fn full_annotations() -> Vec<NonZero<u8>> {
@@ -236,6 +300,32 @@ const CELL_TO_BLOCK: [usize; 81] = [
     6, 6, 6, 7, 7, 7, 8, 8, 8,
     6, 6, 6, 7, 7, 7, 8, 8, 8,
     6, 6, 6, 7, 7, 7, 8, 8, 8,
+];
+
+#[rustfmt::skip]
+const CELL_TO_ROW: [usize; 81] = [
+    0, 0, 0, 0, 0, 0, 0, 0, 0,
+    1, 1, 1, 1, 1, 1, 1, 1, 1,
+    2, 2, 2, 2, 2, 2, 2, 2, 2,
+    3, 3, 3, 3, 3, 3, 3, 3, 3,
+    4, 4, 4, 4, 4, 4, 4, 4, 4,
+    5, 5, 5, 5, 5, 5, 5, 5, 5,
+    6, 6, 6, 6, 6, 6, 6, 6, 6,
+    7, 7, 7, 7, 7, 7, 7, 7, 7,
+    8, 8, 8, 8, 8, 8, 8, 8, 8,
+];
+
+#[rustfmt::skip]
+const CELL_TO_COLUMN: [usize; 81] = [
+    0, 1, 2, 3, 4, 5, 6, 7, 8,
+    0, 1, 2, 3, 4, 5, 6, 7, 8,
+    0, 1, 2, 3, 4, 5, 6, 7, 8,
+    0, 1, 2, 3, 4, 5, 6, 7, 8,
+    0, 1, 2, 3, 4, 5, 6, 7, 8,
+    0, 1, 2, 3, 4, 5, 6, 7, 8,
+    0, 1, 2, 3, 4, 5, 6, 7, 8,
+    0, 1, 2, 3, 4, 5, 6, 7, 8,
+    0, 1, 2, 3, 4, 5, 6, 7, 8,
 ];
 
 #[rustfmt::skip]
