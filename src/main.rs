@@ -298,20 +298,6 @@ fn calculate_cell_annotations(
         .collect::<Vec<_>>()
 }
 
-fn full_annotations() -> Vec<NonZero<u8>> {
-    vec![
-        non_zero(1),
-        non_zero(2),
-        non_zero(3),
-        non_zero(4),
-        non_zero(5),
-        non_zero(6),
-        non_zero(7),
-        non_zero(8),
-        non_zero(9),
-    ]
-}
-
 #[rustfmt::skip]
 const CELL_TO_BLOCK: [usize; 81] = [
     0, 0, 0, 1, 1, 1, 2, 2, 2,
