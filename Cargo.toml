@@ -1,8 +1,7 @@
-[package]
-name = "sudoku"
-version = "0.1.0"
-edition = "2024"
+[workspace]
+resolver = "3"
+members = ["core", "cli", "gui"]
+default-members = ["cli"]
 
-[profile.release]
-opt-level = 3
-debug = 2
+[workspace.package]
+version = "0.0.1"

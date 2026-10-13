@@ -1,0 +1,11 @@
+[package]
+name = "cli"
+version.workspace = true
+edition = "2024"
+
+[profile.release]
+opt-level = 3
+debug = 2
+
+[dependencies]
+core = { path = "../core" }

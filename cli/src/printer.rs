@@ -1,4 +1,4 @@
-use crate::Sudoku;
+use core::sudoku::Sudoku;
 
 pub fn print_board(sudoku: &Sudoku) {
     for row in sudoku.cells.chunks_exact(9) {

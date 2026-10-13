@@ -1,0 +1,9 @@
+[package]
+name = "gui"
+version.workspace = true
+edition = "2024"
+
+
+[dependencies]
+iced = "0.14.0"
+core = { path = "../core" }
