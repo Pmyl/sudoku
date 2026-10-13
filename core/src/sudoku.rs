@@ -6,6 +6,7 @@ use std::{
 
 pub struct Sudoku {
     pub cells: [Option<NonZero<u8>>; 81],
+    pub original_cells: [Option<NonZero<u8>>; 81],
     pub annotations: [VecDeque<NonZero<u8>>; 81],
     pub original_annotations: [VecDeque<NonZero<u8>>; 81],
     pub playable_indices: Vec<usize>,
@@ -14,6 +15,9 @@ pub struct Sudoku {
     pub is_valid: bool,
     pub backtracking_count: usize,
     pub invalid_attempts: usize,
+    pub visited_cells_heatmap: [usize; 81],
+    pub invalid_attempts_heatmap: [usize; 81],
+    pub backtracked_heatmap: [usize; 81],
 }
 
 impl Sudoku {
@@ -23,6 +27,7 @@ impl Sudoku {
         let playable_indices = calculate_playable_indices_order(&annotations);
 
         Self {
+            original_cells: cells.clone(),
             annotations,
             original_annotations,
             playable_indices,
@@ -32,7 +37,24 @@ impl Sudoku {
             is_valid: true,
             backtracking_count: 0,
             invalid_attempts: 0,
+            visited_cells_heatmap: [0; _],
+            invalid_attempts_heatmap: [0; _],
+            backtracked_heatmap: [0; _],
         }
+    }
+
+    pub fn reset(&mut self) {
+        self.annotations = self.original_annotations.clone();
+        self.playable_indices = calculate_playable_indices_order(&self.annotations);
+        self.playable_index = 0;
+        self.cells = self.original_cells.clone();
+        self.step_count = 0;
+        self.is_valid = true;
+        self.backtracking_count = 0;
+        self.invalid_attempts = 0;
+        self.visited_cells_heatmap = [0; _];
+        self.invalid_attempts_heatmap = [0; _];
+        self.backtracked_heatmap = [0; _];
     }
 
     pub fn index(&self) -> Option<usize> {
@@ -176,12 +198,14 @@ impl Sudoku {
     pub fn next(&mut self) -> Option<bool> {
         self.step_count += 1;
         let index = self.playable_indices[self.playable_index];
+        self.visited_cells_heatmap[index] += 1;
         let annotation = &mut self.annotations[index];
 
         let Some(value_to_try) = annotation.pop_front() else {
             *annotation = self.original_annotations[index].clone();
             self.cells[index] = None;
             self.backtracking_count += 1;
+            self.backtracked_heatmap[index] += 1;
             match self.playable_index.checked_sub(1) {
                 Some(v) => {
                     self.playable_index = v;
@@ -204,6 +228,7 @@ impl Sudoku {
             }
         } else {
             self.invalid_attempts += 1;
+            self.invalid_attempts_heatmap[index] += 1;
             self.is_valid = false;
         }
 

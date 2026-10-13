@@ -1,10 +1,10 @@
 use core::sudoku::Sudoku;
-use std::{num::NonZero, str::FromStr};
+use std::{fmt::Display, num::NonZero, str::FromStr, time::Instant};
 
 use iced::{
     Border, Color, Subscription,
     alignment::{Horizontal, Vertical},
-    widget::{Column, button, column, container, row, text},
+    widget::{Column, ComboBox, button, column, combo_box, container, row, text, text_input},
 };
 
 use iced::time::Duration;
@@ -14,12 +14,35 @@ pub enum Message {
     Next,
     TogglePause,
     Solve,
+    UpdateSpeed(String),
+    UpdateHeatmap(Heatmap),
+}
+
+#[derive(Debug, Clone)]
+enum Heatmap {
+    Backtracked,
+    Visited,
+    InvalidAttempts,
+}
+
+impl Display for Heatmap {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Heatmap::Backtracked => write!(f, "Backtracked"),
+            Heatmap::Visited => write!(f, "Visited"),
+            Heatmap::InvalidAttempts => write!(f, "InvalidAttempts"),
+        }
+    }
 }
 
 struct Game {
     sudoku: Sudoku,
     is_paused: bool,
     is_complete: bool,
+    time_to_solve: Option<Duration>,
+    update_nanoseconds: u128,
+    selected_heatmap: Heatmap,
+    heatmaps: combo_box::State<Heatmap>,
 }
 
 fn main() -> iced::Result {
@@ -41,27 +64,69 @@ impl Game {
         });
         Game {
             sudoku: Sudoku::new(example),
-            is_paused: false,
+            is_paused: true,
             is_complete: false,
+            time_to_solve: None,
+            update_nanoseconds: 100_000_000,
+            selected_heatmap: Heatmap::InvalidAttempts,
+            heatmaps: combo_box::State::new(vec![
+                Heatmap::Backtracked,
+                Heatmap::Visited,
+                Heatmap::InvalidAttempts,
+            ]),
         }
     }
 
     pub fn view(&self) -> Column<'_, Message> {
         let index = self.sudoku.index().unwrap_or(usize::MAX);
-        let current_background_color = if self.sudoku.is_valid {
-            iced::Background::Color(Color {
+
+        let (max, heatmap) = match self.selected_heatmap {
+            Heatmap::Backtracked => (
+                *self
+                    .sudoku
+                    .backtracked_heatmap
+                    .iter()
+                    .max()
+                    .unwrap()
+                    .max(&1),
+                &self.sudoku.backtracked_heatmap,
+            ),
+            Heatmap::Visited => (
+                *self
+                    .sudoku
+                    .visited_cells_heatmap
+                    .iter()
+                    .max()
+                    .unwrap()
+                    .max(&1),
+                &self.sudoku.visited_cells_heatmap,
+            ),
+            Heatmap::InvalidAttempts => (
+                *self
+                    .sudoku
+                    .invalid_attempts_heatmap
+                    .iter()
+                    .max()
+                    .unwrap()
+                    .max(&1),
+                &self.sudoku.invalid_attempts_heatmap,
+            ),
+        };
+
+        let current_border_color = if self.sudoku.is_valid {
+            Color {
                 r: 0.0,
                 g: 1.0,
                 b: 0.0,
                 a: 1.0,
-            })
+            }
         } else {
-            iced::Background::Color(Color {
+            Color {
                 r: 1.0,
                 g: 0.0,
                 b: 0.0,
                 a: 1.0,
-            })
+            }
         };
 
         let rows = self
@@ -75,19 +140,25 @@ impl Game {
                     .map(|s| s.map_or(" ".to_string(), |v| v.to_string()))
                     .enumerate()
                     .map(|(x, c)| {
+                        let cell_index = y * 9 + x;
                         container(text(c))
                             .width(50)
                             .height(50)
                             .align_x(Horizontal::Center)
                             .align_y(Vertical::Center)
                             .style(move |_theme| container::Style {
-                                background: if y * 9 + x == index {
-                                    Some(current_background_color)
-                                } else {
-                                    None
-                                },
+                                background: Some(iced::Background::Color(Color::from_rgba(
+                                    1.0,
+                                    0.0,
+                                    0.0,
+                                    heatmap[cell_index] as f32 / max as f32,
+                                ))),
                                 border: Border {
-                                    color: Color::BLACK,
+                                    color: if cell_index == index {
+                                        current_border_color
+                                    } else {
+                                        Color::BLACK
+                                    },
                                     width: 1.0,
                                     radius: 4.0.into(),
                                 },
@@ -102,17 +173,21 @@ impl Game {
             .fold(Column::new(), |column, r| column.push(r));
 
         let buttons = row![
-            button("solve").on_press_maybe(if self.is_complete {
-                None
-            } else {
-                Some(Message::Solve)
-            }),
+            button("solve").on_press(Message::Solve),
             button("pause/start").on_press(Message::TogglePause),
             button("next").on_press_maybe(if self.is_paused && !self.is_complete {
                 Some(Message::Next)
             } else {
                 None
             }),
+            combo_box(
+                &self.heatmaps,
+                "Select",
+                Some(&self.selected_heatmap),
+                Message::UpdateHeatmap
+            ),
+            text_input("Update every: ", &self.update_nanoseconds.to_string())
+                .on_input(Message::UpdateSpeed)
         ];
         column![
             rows,
@@ -126,6 +201,12 @@ impl Game {
             .color(Color::from_str("#17CCEF").unwrap()),
             text(format!("Backtracked: {}", self.sudoku.backtracking_count))
                 .color(Color::from_str("#C2C461").unwrap()),
+            text(format!(
+                "Finished in: {} seconds",
+                self.time_to_solve
+                    .map(|t| t.as_secs_f32().to_string())
+                    .unwrap_or("-".to_string())
+            ))
         ]
     }
 
@@ -140,10 +221,19 @@ impl Game {
                 }
             }
             Message::Solve => {
-                self.is_complete = true;
+                self.sudoku.reset();
+                let timer = Instant::now();
                 self.sudoku.solve();
+                self.time_to_solve = Some(timer.elapsed());
+                self.is_complete = true;
             }
             Message::TogglePause => self.is_paused = !self.is_paused,
+            Message::UpdateSpeed(v) => {
+                if let Ok(m) = u128::from_str(&v) {
+                    self.update_nanoseconds = m;
+                }
+            }
+            Message::UpdateHeatmap(heatmap) => self.selected_heatmap = heatmap,
         }
     }
 
@@ -151,7 +241,8 @@ impl Game {
         if self.is_paused || self.is_complete {
             Subscription::none()
         } else {
-            iced::time::every(Duration::from_millis(100)).map(|_| Message::Next)
+            iced::time::every(Duration::from_nanos_u128(self.update_nanoseconds))
+                .map(|_| Message::Next)
         }
     }
 }
