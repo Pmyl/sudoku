@@ -7,14 +7,32 @@ use std::{
 pub struct Sudoku {
     pub cells: [Option<NonZero<u8>>; 81],
     pub annotations: [VecDeque<NonZero<u8>>; 81],
+    pub original_annotations: [VecDeque<NonZero<u8>>; 81],
+    pub playable_indices: Vec<usize>,
+    pub playable_index: usize,
+    pub step_count: usize,
+    pub is_valid: bool,
 }
 
 impl Sudoku {
     pub fn new(cells: [Option<NonZero<u8>>; 81]) -> Self {
+        let annotations = array::from_fn(|i| calculate_cell_annotations(&cells, i));
+        let original_annotations = annotations.clone();
+        let playable_indices = calculate_playable_indices_order(&annotations);
+
         Self {
-            annotations: array::repeat::<VecDeque<NonZero<u8>>, 81>(VecDeque::new()),
+            annotations,
+            original_annotations,
+            playable_indices,
             cells,
+            playable_index: 0,
+            step_count: 0,
+            is_valid: true,
         }
+    }
+
+    pub fn index(&self) -> usize {
+        self.playable_indices[self.playable_index]
     }
 
     pub fn clues_count(&self) -> usize {
@@ -142,58 +160,65 @@ impl Sudoku {
     }
 
     pub fn solve(&mut self) -> Option<()> {
-        self.annotations = array::from_fn(|i| calculate_cell_annotations(&self.cells, i));
-        let original_annotations = self.annotations.clone();
-        let playable_indices = self.calculate_playable_indices_order();
-
-        let mut playable_index = 0;
         loop {
-            let index = playable_indices[playable_index];
-            let annotation = &mut self.annotations[index];
-
-            let Some(value_to_try) = annotation.pop_front() else {
-                *annotation = original_annotations[index].clone();
-                self.cells[index] = None;
-                playable_index = playable_index.checked_sub(1)?;
-                continue;
+            match self.next() {
+                Some(true) => return Some(()),
+                Some(false) => return None,
+                None => (),
             };
+        }
+    }
 
-            self.cells[index] = Some(value_to_try);
-            let row_i = index / 9;
-            let col_i = index % 9;
-            let block_i = CELL_TO_BLOCK[index];
+    pub fn next(&mut self) -> Option<bool> {
+        let index = self.playable_indices[self.playable_index];
+        let annotation = &mut self.annotations[index];
 
-            if self.is_valid_block(block_i)
-                && self.is_valid_column(col_i)
-                && self.is_valid_row(row_i)
-            {
-                playable_index += 1;
-                if playable_index == playable_indices.len() {
-                    break;
+        let Some(value_to_try) = annotation.pop_front() else {
+            *annotation = self.original_annotations[index].clone();
+            self.cells[index] = None;
+            match self.playable_index.checked_sub(1) {
+                Some(v) => {
+                    self.playable_index = v;
+                    return None;
                 }
+                None => return Some(false),
             }
+        };
+
+        self.cells[index] = Some(value_to_try);
+        let row_i = index / 9;
+        let col_i = index % 9;
+        let block_i = CELL_TO_BLOCK[index];
+
+        if self.is_valid_block(block_i) && self.is_valid_column(col_i) && self.is_valid_row(row_i) {
+            self.is_valid = true;
+            self.playable_index += 1;
+            if self.playable_index == self.playable_indices.len() {
+                return Some(true);
+            }
+        } else {
+            self.is_valid = false;
         }
 
-        Some(())
+        return None;
     }
+}
 
-    // Sorted by annotations length, smaller annotations means it's more probable to hit the right one and not backtrack
-    // Note: Sorting has the biggest impact, it goes from 2 seconds to 0 seconds to solve a 17 clues sudoku we used as example
-    fn calculate_playable_indices_order(&mut self) -> Vec<usize> {
-        let mut playable_indices = self
-            .annotations
-            .iter()
-            .enumerate()
-            .filter(|(_, a)| !a.is_empty())
-            .map(|(i, a)| (i, a.len()))
-            .collect::<Vec<_>>();
-        playable_indices.sort_by_key(|(_, l)| *l);
-        let playable_indices = playable_indices
-            .into_iter()
-            .map(|(i, _)| i)
-            .collect::<Vec<_>>();
-        playable_indices
-    }
+// Sorted by annotations length, smaller annotations means it's more probable to hit the right one and not backtrack
+// Note: Sorting has the biggest impact, it goes from 2 seconds to 0 seconds to solve a 17 clues sudoku we used as example
+fn calculate_playable_indices_order(annotations: &[VecDeque<NonZero<u8>>; 81]) -> Vec<usize> {
+    let mut playable_indices = annotations
+        .iter()
+        .enumerate()
+        .filter(|(_, a)| !a.is_empty())
+        .map(|(i, a)| (i, a.len()))
+        .collect::<Vec<_>>();
+    playable_indices.sort_by_key(|(_, l)| *l);
+    let playable_indices = playable_indices
+        .into_iter()
+        .map(|(i, _)| i)
+        .collect::<Vec<_>>();
+    playable_indices
 }
 
 #[rustfmt::skip]
