@@ -7,15 +7,21 @@ use iced::{
     widget::{Column, button, column, container, row, text},
 };
 
+use iced::time::{self, Duration, Instant};
+
 #[derive(Debug, Clone)]
-pub enum Message {}
+pub enum Message {
+    Next,
+}
 
 struct Game {
     sudoku: Sudoku,
 }
 
 fn main() -> iced::Result {
-    iced::application(Game::new, Game::update, Game::view).run()
+    iced::application(Game::new, Game::update, Game::view)
+        .subscription(Game::subscription)
+        .run()
 }
 
 impl Game {
@@ -69,7 +75,15 @@ impl Game {
     }
 
     pub fn update(&mut self, message: Message) {
-        match message {}
+        match message {
+            Message::Next => {
+                self.sudoku.next();
+            }
+        }
+    }
+
+    pub fn subscription(&self) -> iced::Subscription<Message> {
+        iced::time::every(Duration::from_millis(20)).map(|_| Message::Next)
     }
 }
 
