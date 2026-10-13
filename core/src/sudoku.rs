@@ -12,6 +12,8 @@ pub struct Sudoku {
     pub playable_index: usize,
     pub step_count: usize,
     pub is_valid: bool,
+    pub backtracking_count: usize,
+    pub invalid_attempts: usize,
 }
 
 impl Sudoku {
@@ -28,11 +30,13 @@ impl Sudoku {
             playable_index: 0,
             step_count: 0,
             is_valid: true,
+            backtracking_count: 0,
+            invalid_attempts: 0,
         }
     }
 
-    pub fn index(&self) -> usize {
-        self.playable_indices[self.playable_index]
+    pub fn index(&self) -> Option<usize> {
+        self.playable_indices.get(self.playable_index).cloned()
     }
 
     pub fn clues_count(&self) -> usize {
@@ -170,12 +174,14 @@ impl Sudoku {
     }
 
     pub fn next(&mut self) -> Option<bool> {
+        self.step_count += 1;
         let index = self.playable_indices[self.playable_index];
         let annotation = &mut self.annotations[index];
 
         let Some(value_to_try) = annotation.pop_front() else {
             *annotation = self.original_annotations[index].clone();
             self.cells[index] = None;
+            self.backtracking_count += 1;
             match self.playable_index.checked_sub(1) {
                 Some(v) => {
                     self.playable_index = v;
@@ -197,6 +203,7 @@ impl Sudoku {
                 return Some(true);
             }
         } else {
+            self.invalid_attempts += 1;
             self.is_valid = false;
         }
 
