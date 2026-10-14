@@ -14,6 +14,7 @@ pub enum Message {
     Next,
     TogglePause,
     Solve,
+    Reset,
     UpdateSpeed(String),
     UpdateHeatmap(Heatmap),
 }
@@ -175,6 +176,7 @@ impl Game {
         let buttons = row![
             button("solve").on_press(Message::Solve),
             button("pause/start").on_press(Message::TogglePause),
+            button("reset").on_press(Message::Reset),
             button("next").on_press_maybe(if self.is_paused && !self.is_complete {
                 Some(Message::Next)
             } else {
@@ -226,6 +228,12 @@ impl Game {
                 self.sudoku.solve();
                 self.time_to_solve = Some(timer.elapsed());
                 self.is_complete = true;
+            }
+            Message::Reset => {
+                self.sudoku.reset();
+                self.is_complete = false;
+                self.time_to_solve = None;
+                self.is_paused = true;
             }
             Message::TogglePause => self.is_paused = !self.is_paused,
             Message::UpdateSpeed(v) => {
