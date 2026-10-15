@@ -1,22 +1,24 @@
 use core::sudoku::Sudoku;
 use std::{fmt::Display, num::NonZero, str::FromStr, time::Instant};
 
+use data::{SUDOKU_EXAMPLE_1, SUDOKU_EXAMPLE_2, ToNonZero, norwig1, norwig2};
 use iced::{
     Border, Color, Subscription,
     alignment::{Horizontal, Vertical},
-    widget::{Column, ComboBox, button, column, combo_box, container, row, text, text_input},
+    widget::{Column, button, column, combo_box, container, row, text, text_input},
 };
 
 use iced::time::Duration;
 
-#[derive(Debug, Clone)]
-pub enum Message {
+#[derive(Clone)]
+enum Message {
     Next,
     TogglePause,
     Solve,
     Reset,
     UpdateSpeed(String),
     UpdateHeatmap(Heatmap),
+    UpdateSudoku(SudokuExample),
 }
 
 #[derive(Debug, Clone)]
@@ -36,6 +38,18 @@ impl Display for Heatmap {
     }
 }
 
+impl Display for SudokuExample {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.name)
+    }
+}
+
+#[derive(Clone)]
+struct SudokuExample {
+    pub name: String,
+    pub value: [Option<NonZero<u8>>; 81],
+}
+
 struct Game {
     sudoku: Sudoku,
     is_paused: bool,
@@ -44,6 +58,8 @@ struct Game {
     update_nanoseconds: u128,
     selected_heatmap: Heatmap,
     heatmaps: combo_box::State<Heatmap>,
+    selected_sudoku: SudokuExample,
+    sudoku_options: combo_box::State<SudokuExample>,
 }
 
 fn main() -> iced::Result {
@@ -54,17 +70,35 @@ fn main() -> iced::Result {
 
 impl Game {
     pub fn new() -> Game {
-        let example: [Option<NonZero<u8>>; 81] = [
-            0, 0, 0, 0, 0, 0, 0, 1, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 5, 0, 4, 0, 7, 0, 0, 8, 0, 0, 0, 3, 0, 0, 0, 0, 1, 0, 9, 0, 0, 0, 0, 3, 0, 0, 4,
-            0, 0, 2, 0, 0, 0, 5, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 6, 0, 0, 0,
-        ]
-        .map(|v| match v {
-            0 => None,
-            a => Some(non_zero(a)),
-        });
+        let mut sudoku_options: Vec<SudokuExample> = vec![
+            SudokuExample {
+                value: SUDOKU_EXAMPLE_1.to_non_zero(),
+                name: "example 1".to_string(),
+            },
+            SudokuExample {
+                value: SUDOKU_EXAMPLE_2.to_non_zero(),
+                name: "example 2".to_string(),
+            },
+        ];
+
+        for (i, v) in norwig1().iter().enumerate() {
+            sudoku_options.push(SudokuExample {
+                value: *v,
+                name: format!("norwig 1 - {}", i),
+            });
+        }
+
+        for (i, v) in norwig2().iter().enumerate() {
+            sudoku_options.push(SudokuExample {
+                value: *v,
+                name: format!("norwig 2 - {}", i),
+            });
+        }
+
+        let selected_sudoku = sudoku_options.first().unwrap().clone();
+
         Game {
-            sudoku: Sudoku::new(example),
+            sudoku: Sudoku::new(selected_sudoku.value),
             is_paused: true,
             is_complete: false,
             time_to_solve: None,
@@ -75,6 +109,8 @@ impl Game {
                 Heatmap::Visited,
                 Heatmap::InvalidAttempts,
             ]),
+            sudoku_options: combo_box::State::new(sudoku_options),
+            selected_sudoku,
         }
     }
 
@@ -188,6 +224,12 @@ impl Game {
                 Some(&self.selected_heatmap),
                 Message::UpdateHeatmap
             ),
+            combo_box(
+                &self.sudoku_options,
+                "Select",
+                Some(&self.selected_sudoku),
+                Message::UpdateSudoku
+            ),
             text_input("Update every: ", &self.update_nanoseconds.to_string())
                 .on_input(Message::UpdateSpeed)
         ];
@@ -242,6 +284,13 @@ impl Game {
                 }
             }
             Message::UpdateHeatmap(heatmap) => self.selected_heatmap = heatmap,
+            Message::UpdateSudoku(sudoku_example) => {
+                self.selected_sudoku = sudoku_example;
+                self.sudoku = Sudoku::new(self.selected_sudoku.value);
+                self.is_complete = false;
+                self.time_to_solve = None;
+                self.is_paused = true;
+            }
         }
     }
 
@@ -252,12 +301,5 @@ impl Game {
             iced::time::every(Duration::from_nanos_u128(self.update_nanoseconds))
                 .map(|_| Message::Next)
         }
-    }
-}
-
-const fn non_zero(value: u8) -> NonZero<u8> {
-    match NonZero::new(value) {
-        Some(v) => v,
-        None => unreachable!(),
     }
 }
