@@ -3,7 +3,7 @@ use std::{fmt::Display, num::NonZero, str::FromStr, time::Instant};
 
 use data::{SUDOKU_EXAMPLE_1, SUDOKU_EXAMPLE_2, ToNonZero, norwig1, norwig2};
 use iced::{
-    Border, Color, Subscription,
+    Border, Color, Length, Subscription,
     alignment::{Horizontal, Vertical},
     widget::{Column, button, column, combo_box, container, row, text, text_input},
 };
@@ -115,6 +115,16 @@ impl Game {
     }
 
     pub fn view(&self) -> Column<'_, Message> {
+        let sudoku = self.sudoku_view();
+
+        let controls = self.controls_view();
+
+        let results = self.resuts_view();
+
+        column![sudoku, controls, results].spacing(10).padding(10)
+    }
+
+    pub fn sudoku_view(&self) -> Column<'_, Message> {
         let index = self.sudoku.index().unwrap_or(usize::MAX);
 
         let (max, heatmap) = match self.selected_heatmap {
@@ -166,8 +176,7 @@ impl Game {
             }
         };
 
-        let rows = self
-            .sudoku
+        self.sudoku
             .cells
             .chunks_exact(9)
             .enumerate()
@@ -207,35 +216,60 @@ impl Game {
 
                 return row(values);
             })
-            .fold(Column::new(), |column, r| column.push(r));
+            .fold(Column::new(), |column, r| column.push(r))
+    }
 
-        let buttons = row![
-            button("solve").on_press(Message::Solve),
-            button("pause/start").on_press(Message::TogglePause),
-            button("reset").on_press(Message::Reset),
-            button("next").on_press_maybe(if self.is_paused && !self.is_complete {
-                Some(Message::Next)
-            } else {
-                None
-            }),
-            combo_box(
-                &self.heatmaps,
-                "Select",
-                Some(&self.selected_heatmap),
-                Message::UpdateHeatmap
-            ),
-            combo_box(
-                &self.sudoku_options,
-                "Select",
-                Some(&self.selected_sudoku),
-                Message::UpdateSudoku
-            ),
-            text_input("Update every: ", &self.update_nanoseconds.to_string())
-                .on_input(Message::UpdateSpeed)
-        ];
+    pub fn controls_view(&self) -> Column<'_, Message> {
+        let toggle_icon = if self.is_paused { "▶" } else { "Ⅱ" };
         column![
-            rows,
-            buttons,
+            row![
+                button("solve").on_press(Message::Solve),
+                button(
+                    container(text(toggle_icon))
+                        .width(Length::Fill)
+                        .align_x(Horizontal::Center)
+                )
+                .width(40)
+                .on_press(Message::TogglePause),
+                button("reset").on_press(Message::Reset),
+                button("next").on_press_maybe(if self.is_paused && !self.is_complete {
+                    Some(Message::Next)
+                } else {
+                    None
+                }),
+            ]
+            .spacing(10),
+            row![
+                column![
+                    text("Heatmap").size(12),
+                    combo_box(
+                        &self.heatmaps,
+                        "Select",
+                        Some(&self.selected_heatmap),
+                        Message::UpdateHeatmap
+                    )
+                ],
+                column![
+                    text("Sudoku").size(12),
+                    combo_box(
+                        &self.sudoku_options,
+                        "Select",
+                        Some(&self.selected_sudoku),
+                        Message::UpdateSudoku
+                    )
+                ],
+                column![
+                    text("Step every (nanoseconds)").size(12),
+                    text_input("Update every: ", &self.update_nanoseconds.to_string())
+                        .on_input(Message::UpdateSpeed)
+                ]
+            ]
+        ]
+        .spacing(10)
+    }
+
+    pub fn resuts_view(&self) -> Column<'_, Message> {
+        column![
             text(format!("Steps: {}", self.sudoku.step_count))
                 .color(Color::from_str("#50C6B2").unwrap()),
             text(format!(
