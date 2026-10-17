@@ -116,9 +116,7 @@ impl Game {
 
     pub fn view(&self) -> Column<'_, Message> {
         let sudoku = self.sudoku_view();
-
         let controls = self.controls_view();
-
         let results = self.resuts_view();
 
         column![sudoku, controls, results].spacing(10).padding(10)
