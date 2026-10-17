@@ -19,6 +19,7 @@ enum Message {
     UpdateSpeed(String),
     UpdateHeatmap(Heatmap),
     UpdateSudoku(SudokuExample),
+    ClearHeatmap,
 }
 
 #[derive(Debug, Clone)]
@@ -56,7 +57,7 @@ struct Game {
     is_complete: bool,
     time_to_solve: Option<Duration>,
     update_nanoseconds: u128,
-    selected_heatmap: Heatmap,
+    selected_heatmap: Option<Heatmap>,
     heatmaps: combo_box::State<Heatmap>,
     selected_sudoku: SudokuExample,
     sudoku_options: combo_box::State<SudokuExample>,
@@ -102,8 +103,8 @@ impl Game {
             is_paused: true,
             is_complete: false,
             time_to_solve: None,
-            update_nanoseconds: 100_000_000,
-            selected_heatmap: Heatmap::InvalidAttempts,
+            update_nanoseconds: 1_000_000_000,
+            selected_heatmap: None,
             heatmaps: combo_box::State::new(vec![
                 Heatmap::Backtracked,
                 Heatmap::Visited,
@@ -125,54 +126,8 @@ impl Game {
     pub fn sudoku_view(&self) -> Column<'_, Message> {
         let index = self.sudoku.index().unwrap_or(usize::MAX);
 
-        let (max, heatmap) = match self.selected_heatmap {
-            Heatmap::Backtracked => (
-                *self
-                    .sudoku
-                    .backtracked_heatmap
-                    .iter()
-                    .max()
-                    .unwrap()
-                    .max(&1),
-                &self.sudoku.backtracked_heatmap,
-            ),
-            Heatmap::Visited => (
-                *self
-                    .sudoku
-                    .visited_cells_heatmap
-                    .iter()
-                    .max()
-                    .unwrap()
-                    .max(&1),
-                &self.sudoku.visited_cells_heatmap,
-            ),
-            Heatmap::InvalidAttempts => (
-                *self
-                    .sudoku
-                    .invalid_attempts_heatmap
-                    .iter()
-                    .max()
-                    .unwrap()
-                    .max(&1),
-                &self.sudoku.invalid_attempts_heatmap,
-            ),
-        };
-
-        let current_border_color = if self.sudoku.is_valid {
-            Color {
-                r: 0.0,
-                g: 1.0,
-                b: 0.0,
-                a: 1.0,
-            }
-        } else {
-            Color {
-                r: 1.0,
-                g: 0.0,
-                b: 0.0,
-                a: 1.0,
-            }
-        };
+        let heatmap = self.heatmap();
+        let current_border_color = self.sudoku_border_color();
 
         self.sudoku
             .cells
@@ -191,12 +146,15 @@ impl Game {
                             .align_x(Horizontal::Center)
                             .align_y(Vertical::Center)
                             .style(move |_theme| container::Style {
-                                background: Some(iced::Background::Color(Color::from_rgba(
-                                    1.0,
-                                    0.0,
-                                    0.0,
-                                    heatmap[cell_index] as f32 / max as f32,
-                                ))),
+                                background: match heatmap {
+                                    Some(v) => Some(iced::Background::Color(Color::from_rgba(
+                                        1.0,
+                                        0.0,
+                                        0.0,
+                                        v.1[cell_index] as f32 / v.0 as f32,
+                                    ))),
+                                    None => None,
+                                },
                                 border: Border {
                                     color: if cell_index == index {
                                         current_border_color
@@ -215,6 +173,60 @@ impl Game {
                 return row(values);
             })
             .fold(Column::new(), |column, r| column.push(r))
+    }
+
+    fn sudoku_border_color(&self) -> Color {
+        if self.sudoku.is_valid {
+            Color {
+                r: 0.0,
+                g: 1.0,
+                b: 0.0,
+                a: 1.0,
+            }
+        } else {
+            Color {
+                r: 1.0,
+                g: 0.0,
+                b: 0.0,
+                a: 1.0,
+            }
+        }
+    }
+
+    fn heatmap(&self) -> Option<(usize, &[usize; 81])> {
+        match self.selected_heatmap {
+            None => None,
+            Some(Heatmap::Backtracked) => Some((
+                *self
+                    .sudoku
+                    .backtracked_heatmap
+                    .iter()
+                    .max()
+                    .unwrap()
+                    .max(&1),
+                &self.sudoku.backtracked_heatmap,
+            )),
+            Some(Heatmap::Visited) => Some((
+                *self
+                    .sudoku
+                    .visited_cells_heatmap
+                    .iter()
+                    .max()
+                    .unwrap()
+                    .max(&1),
+                &self.sudoku.visited_cells_heatmap,
+            )),
+            Some(Heatmap::InvalidAttempts) => Some((
+                *self
+                    .sudoku
+                    .invalid_attempts_heatmap
+                    .iter()
+                    .max()
+                    .unwrap()
+                    .max(&1),
+                &self.sudoku.invalid_attempts_heatmap,
+            )),
+        }
     }
 
     pub fn controls_view(&self) -> Column<'_, Message> {
@@ -240,12 +252,31 @@ impl Game {
             row![
                 column![
                     text("Heatmap").size(12),
-                    combo_box(
-                        &self.heatmaps,
-                        "Select",
-                        Some(&self.selected_heatmap),
-                        Message::UpdateHeatmap
-                    )
+                    row![
+                        combo_box(
+                            &self.heatmaps,
+                            "Select",
+                            self.selected_heatmap.as_ref(),
+                            Message::UpdateHeatmap
+                        ),
+                        button(
+                            container(text("×"))
+                                .width(Length::Fill)
+                                .align_x(Horizontal::Center)
+                        )
+                        .width(40)
+                        .on_press(Message::ClearHeatmap)
+                        .style(|_theme, _status| {
+                            button::Style {
+                                background: Some(iced::Background::Color(iced::Color::from_rgb8(
+                                    83, 49, 56,
+                                ))),
+                                text_color: iced::Color::from_rgb8(255, 190, 185),
+                                ..button::Style::default()
+                            }
+                        })
+                    ]
+                    .spacing(4)
                 ],
                 column![
                     text("Sudoku").size(12),
@@ -259,9 +290,15 @@ impl Game {
                 column![
                     text("Step every (nanoseconds)").size(12),
                     text_input("Update every: ", &self.update_nanoseconds.to_string())
-                        .on_input(Message::UpdateSpeed)
+                        .on_input(Message::UpdateSpeed),
+                    text(format!(
+                        "seconds {}",
+                        (self.update_nanoseconds as f64) / 1_000_000_000.0
+                    ))
+                    .size(12),
                 ]
             ]
+            .spacing(8)
         ]
         .spacing(10)
     }
@@ -315,13 +352,14 @@ impl Game {
                     self.update_nanoseconds = m;
                 }
             }
-            Message::UpdateHeatmap(heatmap) => self.selected_heatmap = heatmap,
+            Message::UpdateHeatmap(heatmap) => self.selected_heatmap = Some(heatmap),
+            Message::ClearHeatmap => self.selected_heatmap = None,
             Message::UpdateSudoku(sudoku_example) => {
+                self.is_paused = true;
                 self.selected_sudoku = sudoku_example;
-                self.sudoku = Sudoku::new(self.selected_sudoku.value);
                 self.is_complete = false;
                 self.time_to_solve = None;
-                self.is_paused = true;
+                self.sudoku = Sudoku::new(self.selected_sudoku.value);
             }
         }
     }
