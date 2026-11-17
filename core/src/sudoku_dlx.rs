@@ -2,15 +2,25 @@ use std::num::NonZero;
 
 use crate::sudoku::Sudoku;
 
-pub struct SudokuX {}
+// Exact cover explanation: https://en.wikipedia.org/wiki/Exact_cover
+// Exact cover matrix for Sudoku: https://www.stolaf.edu/people/hansonr/sudoku/exactcovermatrix.htm
+// Per ogni cella iniziale (original_cells), dobbiamo togliere dalla exact cover matrix
+// tutte le righe di constraint // dei numeri diversi dal numero nella cella.
+// Per esempio: se r1c7 ha il numero inizial 5, va tenuta solo la riga
+// r1c7#5 e vanno rimosse r1c7#1, r1c7#2, r1c7#3, r1c7#4, r1c7#6, r1c7#7, r1c7#8, r1c7#9
+//
+// SudokuX usa https://en.wikipedia.org/wiki/Dancing_links
+// rispetto a SudokuXNaive
 
-impl SudokuX {
-    pub fn new(_cells: [Option<NonZero<u8>>; 81]) -> SudokuX {
-        SudokuX {}
+pub struct SudokuDlx {}
+
+impl SudokuDlx {
+    pub fn new(_cells: [Option<NonZero<u8>>; 81]) -> SudokuDlx {
+        SudokuDlx {}
     }
 }
 
-impl Sudoku for SudokuX {
+impl Sudoku for SudokuDlx {
     fn reset(&mut self) {
         todo!()
     }

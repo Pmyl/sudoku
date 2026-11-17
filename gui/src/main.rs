@@ -1,6 +1,6 @@
 #![feature(iter_array_chunks)]
 
-use core::{sudoku::Sudoku, sudoku_array::SudokuArray, sudoku_x::SudokuX};
+use core::{sudoku::Sudoku, sudoku_array::SudokuArray, sudoku_dlx::SudokuDlx};
 use std::{fmt::Display, num::NonZero, str::FromStr, time::Instant};
 
 use data::{SUDOKU_EXAMPLE_1, SUDOKU_EXAMPLE_2, ToNonZero, norwig1, norwig2};
@@ -55,7 +55,7 @@ struct SudokuExample {
 
 struct Game {
     sudoku_array: SudokuArray,
-    sudoku_x: SudokuX,
+    sudoku_x: SudokuDlx,
 
     is_paused: bool,
     is_complete: bool,
@@ -104,7 +104,7 @@ impl Game {
 
         Game {
             sudoku_array: SudokuArray::new(selected_sudoku.value),
-            sudoku_x: SudokuX {},
+            sudoku_x: SudokuDlx {},
 
             is_paused: true,
             is_complete: false,
@@ -377,7 +377,7 @@ impl Game {
                 self.is_complete = false;
                 self.time_to_solve = None;
                 self.sudoku_array = SudokuArray::new(self.selected_sudoku.value);
-                self.sudoku_x = SudokuX::new(self.selected_sudoku.value);
+                self.sudoku_x = SudokuDlx::new(self.selected_sudoku.value);
             }
         }
     }
