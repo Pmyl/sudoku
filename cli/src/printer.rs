@@ -1,7 +1,7 @@
 use core::sudoku::Sudoku;
 
 pub fn print_board(sudoku: &Sudoku) {
-    for row in sudoku.cells.chunks_exact(9) {
+    for row in sudoku.cells().array_chunks::<9>() {
         println!(
             "{}",
             row.iter()

@@ -1,3 +1,5 @@
+#![feature(iter_array_chunks)]
+
 use core::sudoku::Sudoku;
 use std::{fmt::Display, num::NonZero, str::FromStr, time::Instant};
 
@@ -130,8 +132,8 @@ impl Game {
         let current_border_color = self.sudoku_border_color();
 
         self.sudoku
-            .cells
-            .chunks_exact(9)
+            .cells()
+            .array_chunks::<9>()
             .enumerate()
             .map(|(y, r)| {
                 let values = r
@@ -176,7 +178,7 @@ impl Game {
     }
 
     fn sudoku_border_color(&self) -> Color {
-        if self.sudoku.is_valid {
+        if self.sudoku.is_valid() {
             Color {
                 r: 0.0,
                 g: 1.0,
@@ -199,32 +201,32 @@ impl Game {
             Some(Heatmap::Backtracked) => Some((
                 *self
                     .sudoku
-                    .backtracked_heatmap
+                    .backtracked_heatmap()
                     .iter()
                     .max()
                     .unwrap()
                     .max(&1),
-                &self.sudoku.backtracked_heatmap,
+                &self.sudoku.backtracked_heatmap(),
             )),
             Some(Heatmap::Visited) => Some((
                 *self
                     .sudoku
-                    .visited_cells_heatmap
+                    .visited_cells_heatmap()
                     .iter()
                     .max()
                     .unwrap()
                     .max(&1),
-                &self.sudoku.visited_cells_heatmap,
+                &self.sudoku.visited_cells_heatmap(),
             )),
             Some(Heatmap::InvalidAttempts) => Some((
                 *self
                     .sudoku
-                    .invalid_attempts_heatmap
+                    .invalid_attempts_heatmap()
                     .iter()
                     .max()
                     .unwrap()
                     .max(&1),
-                &self.sudoku.invalid_attempts_heatmap,
+                &self.sudoku.invalid_attempts_heatmap(),
             )),
         }
     }
@@ -305,14 +307,14 @@ impl Game {
 
     pub fn resuts_view(&self) -> Column<'_, Message> {
         column![
-            text(format!("Steps: {}", self.sudoku.step_count))
+            text(format!("Steps: {}", self.sudoku.step_count()))
                 .color(Color::from_str("#50C6B2").unwrap()),
             text(format!(
                 "Invalid attempts: {}",
-                self.sudoku.invalid_attempts
+                self.sudoku.invalid_attempts()
             ))
             .color(Color::from_str("#17CCEF").unwrap()),
-            text(format!("Backtracked: {}", self.sudoku.backtracking_count))
+            text(format!("Backtracked: {}", self.sudoku.backtracking_count()))
                 .color(Color::from_str("#C2C461").unwrap()),
             text(format!(
                 "Finished in: {} seconds",

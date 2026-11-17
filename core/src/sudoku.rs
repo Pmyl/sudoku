@@ -5,19 +5,20 @@ use std::{
 };
 
 pub struct Sudoku {
-    pub cells: [Option<NonZero<u8>>; 81],
-    pub original_cells: [Option<NonZero<u8>>; 81],
-    pub annotations: [VecDeque<NonZero<u8>>; 81],
-    pub original_annotations: [VecDeque<NonZero<u8>>; 81],
-    pub playable_indices: Vec<usize>,
-    pub playable_index: usize,
-    pub step_count: usize,
-    pub is_valid: bool,
-    pub backtracking_count: usize,
-    pub invalid_attempts: usize,
-    pub visited_cells_heatmap: [usize; 81],
-    pub invalid_attempts_heatmap: [usize; 81],
-    pub backtracked_heatmap: [usize; 81],
+    cells: [Option<NonZero<u8>>; 81],
+    original_cells: [Option<NonZero<u8>>; 81],
+    annotations: [VecDeque<NonZero<u8>>; 81],
+    original_annotations: [VecDeque<NonZero<u8>>; 81],
+    playable_indices: Vec<usize>,
+    playable_index: usize,
+
+    step_count: usize,
+    is_valid: bool,
+    backtracking_count: usize,
+    invalid_attempts: usize,
+    visited_cells_heatmap: [usize; 81],
+    invalid_attempts_heatmap: [usize; 81],
+    backtracked_heatmap: [usize; 81],
 }
 
 impl Sudoku {
@@ -120,6 +121,38 @@ impl Sudoku {
         }
 
         true
+    }
+
+    pub fn cells(&self) -> impl Iterator<Item = &Option<NonZero<u8>>> {
+        self.cells.iter()
+    }
+
+    pub fn step_count(&self) -> usize {
+        self.step_count
+    }
+
+    pub fn is_valid(&self) -> bool {
+        self.is_valid
+    }
+
+    pub fn backtracking_count(&self) -> usize {
+        self.backtracking_count
+    }
+
+    pub fn invalid_attempts(&self) -> usize {
+        self.invalid_attempts
+    }
+
+    pub fn visited_cells_heatmap(&self) -> &[usize; 81] {
+        &self.visited_cells_heatmap
+    }
+
+    pub fn invalid_attempts_heatmap(&self) -> &[usize; 81] {
+        &self.invalid_attempts_heatmap
+    }
+
+    pub fn backtracked_heatmap(&self) -> &[usize; 81] {
+        &self.backtracked_heatmap
     }
 
     // Note: Using `set` as an array instead of a HashSet gives a big impact in performance (from 40~ seconds to 4~ seconds to solve a 17 clues sudoku)

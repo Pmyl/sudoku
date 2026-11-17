@@ -1,3 +1,5 @@
+#![feature(iter_array_chunks)]
+
 mod printer;
 
 use core::sudoku::Sudoku;
