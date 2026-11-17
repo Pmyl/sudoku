@@ -1,7 +1,10 @@
-use core::sudoku::Sudoku;
+use core::{sudoku::Sudoku, sudoku_array::SudokuArray};
 
-pub fn print_board(sudoku: &Sudoku) {
-    for row in sudoku.cells().array_chunks::<9>() {
+pub fn print_board(sudoku: &SudokuArray) {
+    for row in (0..81usize)
+        .map(|i| sudoku.cell(i % 9, i / 9))
+        .array_chunks::<9>()
+    {
         println!(
             "{}",
             row.iter()

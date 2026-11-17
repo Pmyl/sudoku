@@ -2,7 +2,7 @@
 
 mod printer;
 
-use core::sudoku::Sudoku;
+use core::{sudoku::Sudoku, sudoku_array::SudokuArray};
 use std::{num::NonZero, time::Instant};
 
 use data::{SUDOKU_EXAMPLE_1, SUDOKU_EXAMPLE_2, ToNonZero, norwig1, norwig2};
@@ -24,7 +24,7 @@ fn main() {
 }
 
 fn solve_sudoku_puzzle(example2: [Option<NonZero<u8>>; 81]) {
-    let mut sudoku = Sudoku::new(example2);
+    let mut sudoku = SudokuArray::new(example2);
 
     println!("Clues: {}", sudoku.clues_count());
     let time = Instant::now();

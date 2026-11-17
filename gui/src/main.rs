@@ -1,6 +1,6 @@
 #![feature(iter_array_chunks)]
 
-use core::sudoku::Sudoku;
+use core::{sudoku::Sudoku, sudoku_array::SudokuArray, sudoku_x::SudokuX};
 use std::{fmt::Display, num::NonZero, str::FromStr, time::Instant};
 
 use data::{SUDOKU_EXAMPLE_1, SUDOKU_EXAMPLE_2, ToNonZero, norwig1, norwig2};
@@ -54,7 +54,9 @@ struct SudokuExample {
 }
 
 struct Game {
-    sudoku: Sudoku,
+    sudoku_array: SudokuArray,
+    sudoku_x: SudokuX,
+
     is_paused: bool,
     is_complete: bool,
     time_to_solve: Option<Duration>,
@@ -101,7 +103,9 @@ impl Game {
         let selected_sudoku = sudoku_options.first().unwrap().clone();
 
         Game {
-            sudoku: Sudoku::new(selected_sudoku.value),
+            sudoku_array: SudokuArray::new(selected_sudoku.value),
+            sudoku_x: SudokuX {},
+
             is_paused: true,
             is_complete: false,
             time_to_solve: None,
@@ -125,14 +129,33 @@ impl Game {
         column![sudoku, controls, results].spacing(10).padding(10)
     }
 
-    pub fn sudoku_view(&self) -> Column<'_, Message> {
-        let index = self.sudoku.index().unwrap_or(usize::MAX);
+    fn current_sudoku(&self) -> &dyn Sudoku {
+        // TODO: if true doesn't make sense, dispatch on button press?
+        if true {
+            &self.sudoku_array
+        } else {
+            &self.sudoku_x
+        }
+    }
+
+    fn current_sudoku_mut(&mut self) -> &mut dyn Sudoku {
+        // TODO: if true doesn't make sense, dispatch on button press?
+        if true {
+            &mut self.sudoku_array
+        } else {
+            &mut self.sudoku_x
+        }
+    }
+
+    fn sudoku_view(&self) -> Column<'_, Message> {
+        let sudoku: &dyn Sudoku = self.current_sudoku();
+        let index = sudoku.index().unwrap_or(usize::MAX);
 
         let heatmap = self.heatmap();
         let current_border_color = self.sudoku_border_color();
 
-        self.sudoku
-            .cells()
+        (0..81usize)
+            .map(|i| sudoku.cell(i % 9, i / 9))
             .array_chunks::<9>()
             .enumerate()
             .map(|(y, r)| {
@@ -178,7 +201,9 @@ impl Game {
     }
 
     fn sudoku_border_color(&self) -> Color {
-        if self.sudoku.is_valid() {
+        let sudoku: &dyn Sudoku = self.current_sudoku();
+
+        if sudoku.is_valid() {
             Color {
                 r: 0.0,
                 g: 1.0,
@@ -196,37 +221,26 @@ impl Game {
     }
 
     fn heatmap(&self) -> Option<(usize, &[usize; 81])> {
+        let sudoku: &dyn Sudoku = self.current_sudoku();
+
         match self.selected_heatmap {
             None => None,
             Some(Heatmap::Backtracked) => Some((
-                *self
-                    .sudoku
-                    .backtracked_heatmap()
-                    .iter()
-                    .max()
-                    .unwrap()
-                    .max(&1),
-                &self.sudoku.backtracked_heatmap(),
+                *sudoku.backtracked_heatmap().iter().max().unwrap().max(&1),
+                &sudoku.backtracked_heatmap(),
             )),
             Some(Heatmap::Visited) => Some((
-                *self
-                    .sudoku
-                    .visited_cells_heatmap()
-                    .iter()
-                    .max()
-                    .unwrap()
-                    .max(&1),
-                &self.sudoku.visited_cells_heatmap(),
+                *sudoku.visited_cells_heatmap().iter().max().unwrap().max(&1),
+                &sudoku.visited_cells_heatmap(),
             )),
             Some(Heatmap::InvalidAttempts) => Some((
-                *self
-                    .sudoku
+                *sudoku
                     .invalid_attempts_heatmap()
                     .iter()
                     .max()
                     .unwrap()
                     .max(&1),
-                &self.sudoku.invalid_attempts_heatmap(),
+                &sudoku.invalid_attempts_heatmap(),
             )),
         }
     }
@@ -306,15 +320,14 @@ impl Game {
     }
 
     pub fn resuts_view(&self) -> Column<'_, Message> {
+        let sudoku: &dyn Sudoku = self.current_sudoku();
+
         column![
-            text(format!("Steps: {}", self.sudoku.step_count()))
+            text(format!("Steps: {}", sudoku.step_count()))
                 .color(Color::from_str("#50C6B2").unwrap()),
-            text(format!(
-                "Invalid attempts: {}",
-                self.sudoku.invalid_attempts()
-            ))
-            .color(Color::from_str("#17CCEF").unwrap()),
-            text(format!("Backtracked: {}", self.sudoku.backtracking_count()))
+            text(format!("Invalid attempts: {}", sudoku.invalid_attempts()))
+                .color(Color::from_str("#17CCEF").unwrap()),
+            text(format!("Backtracked: {}", sudoku.backtracking_count()))
                 .color(Color::from_str("#C2C461").unwrap()),
             text(format!(
                 "Finished in: {} seconds",
@@ -329,21 +342,23 @@ impl Game {
         match message {
             Message::Next => {
                 if !self.is_complete {
-                    match self.sudoku.next() {
+                    match self.current_sudoku_mut().next() {
                         Some(_) => self.is_complete = true,
                         None => (),
                     }
                 }
             }
             Message::Solve => {
-                self.sudoku.reset();
+                let sudoku = self.current_sudoku_mut();
+                sudoku.reset();
                 let timer = Instant::now();
-                self.sudoku.solve();
+                sudoku.solve();
                 self.time_to_solve = Some(timer.elapsed());
                 self.is_complete = true;
             }
             Message::Reset => {
-                self.sudoku.reset();
+                let sudoku = self.current_sudoku_mut();
+                sudoku.reset();
                 self.is_complete = false;
                 self.time_to_solve = None;
                 self.is_paused = true;
@@ -361,7 +376,8 @@ impl Game {
                 self.selected_sudoku = sudoku_example;
                 self.is_complete = false;
                 self.time_to_solve = None;
-                self.sudoku = Sudoku::new(self.selected_sudoku.value);
+                self.sudoku_array = SudokuArray::new(self.selected_sudoku.value);
+                self.sudoku_x = SudokuX::new(self.selected_sudoku.value);
             }
         }
     }
